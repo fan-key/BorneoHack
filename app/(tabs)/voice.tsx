@@ -5,300 +5,292 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
+  Easing,
 } from "react-native";
 import { useState, useRef, useEffect } from "react";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Task = {
-  id: string;
-  time: string;
-  title: string;
-  subtitle: string;
-  done: boolean;
-  color: string;
-  icon: string;
+type VoiceState = "idle" | "listening" | "thinking" | "speaking";
+
+type AIStep = {
+  number: number;
+  text: string;
+  loading?: boolean;
 };
 
-type FAQ = {
-  q: string;
-  qSub: string;
-  a: string;
-  aSub: string;
+// ── FAQ suggestions ───────────────────────────────────────────────────────────
+const FAQS = [
+  "Bagaimana cara mengatasi ulat?",
+  "Bila waktu sesuai membaja?",
+  "Kenapa daun pokok cili saya kuning?",
+  "Cara buat kompos organik sendiri?",
+];
+
+// ── Fake AI responses ─────────────────────────────────────────────────────────
+const AI_RESPONSES: Record<string, AIStep[]> = {
+  default: [
+    { number: 1, text: "Periksa tanaman anda setiap pagi untuk tanda-tanda awal penyakit." },
+    { number: 2, text: "Pastikan saliran tanah baik supaya air tidak bertakung." },
+    { number: 3, text: "Gunakan baja organik sekali sebulan untuk hasil yang lebih baik." },
+  ],
+  ulat: [
+    { number: 1, text: "Kutip ulat secara manual pada waktu pagi atau petang." },
+    { number: 2, text: "Semburkan larutan sabun cair dicampur air pada daun yang diserang." },
+    { number: 3, text: "Tanam pokok bunga seperti marigold sebagai pengusir semula jadi." },
+  ],
+  baja: [
+    { number: 1, text: "Masa terbaik adalah pada fasa anak benih (14–21 hari selepas tanam)." },
+    { number: 2, text: "Gunakan NPK 15-15-15 sebagai baja asas pada kadar 60 kg/hektar." },
+    { number: 3, text: "Baja semula pada fasa anakan aktif (35–45 hari) untuk hasil optima." },
+  ],
+  kuning: [
+    { number: 1, text: "Daun kuning biasanya disebabkan kekurangan nitrogen atau besi." },
+    { number: 2, text: "Uji pH tanah — nilai ideal ialah antara 6.0 hingga 7.0." },
+    { number: 3, text: "Gunakan baja urea 60–80 kg/hektar dan semak semula selepas 2 minggu." },
+  ],
+  kompos: [
+    { number: 1, text: "Kumpulkan sisa dapur (sayur, buah) dan sisa kebun ke dalam tong." },
+    { number: 2, text: "Campur bahan hijau (nitrogen) dan bahan coklat (karbon) sama banyak." },
+    { number: 3, text: "Kacau campuran setiap 3–4 hari. Kompos sedia dalam 6–8 minggu." },
+  ],
 };
 
-// ── Calendar helpers ──────────────────────────────────────────────────────────
-const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
-const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
-];
-
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate();
-}
-function getFirstDayOfMonth(year: number, month: number) {
-  return new Date(year, month, 1).getDay();
+function getAISteps(input: string): AIStep[] {
+  const l = input.toLowerCase();
+  if (l.includes("ulat")) return AI_RESPONSES.ulat;
+  if (l.includes("baja")) return AI_RESPONSES.baja;
+  if (l.includes("kuning")) return AI_RESPONSES.kuning;
+  if (l.includes("kompos")) return AI_RESPONSES.kompos;
+  return AI_RESPONSES.default;
 }
 
-// ── Static data ───────────────────────────────────────────────────────────────
-const INITIAL_TASKS: Task[] = [
-  { id: "1", time: "07:00", title: "Periksa paras air",     subtitle: "Check water level",        done: true,  color: "#22C55E", icon: "water-outline" },
-  { id: "2", time: "10:00", title: "Sembur baja organik",   subtitle: "Apply organic fertilizer", done: false, color: "#F59E0B", icon: "leaf-outline" },
-  { id: "3", time: "15:00", title: "Pantau serangan perosak", subtitle: "Monitor pests",          done: false, color: "#9CA3AF", icon: "bug-outline" },
-];
+// ── Pulse rings ───────────────────────────────────────────────────────────────
+function PulseRings({ active }: { active: boolean }) {
+  const rings = [useRef(new Animated.Value(0)).current, useRef(new Animated.Value(0)).current];
 
-const REMINDERS = [
-  { title: "Masa penyiraman optimum ialah 7-9 pagi", sub: "Optimal watering time is 7-9 AM" },
-  { title: "Periksa perosak di bawah daun",           sub: "Check for pests under leaves" },
-];
-
-const FAQS: FAQ[] = [
-  {
-    q: "Daun kuning? / Yellow leaves?",
-    qSub: "",
-    a: "Tambahkan baja nitrogen untuk menggalakkan pertumbuhan hijau.",
-    aSub: "Add nitrogen fertilizer to promote green growth.",
-  },
-  {
-    q: "Layu? / Wilting?",
-    qSub: "",
-    a: "Periksa kelembapan tanah; siram jika tanah terasa kering.",
-    aSub: "Check soil moisture; water if soil feels dry.",
-  },
-  {
-    q: "Bintik coklat? / Brown spots?",
-    qSub: "",
-    a: "Mungkin disebabkan kulat. Gunakan fungisida organik dan kurangkan kelembapan.",
-    aSub: "Likely fungal. Use organic fungicide and reduce moisture.",
-  },
-  {
-    q: "Pertumbuhan perlahan? / Slow growth?",
-    qSub: "",
-    a: "Semak pencahayaan dan pastikan tanah mendapat nutrien yang cukup.",
-    aSub: "Check lighting and ensure soil has sufficient nutrients.",
-  },
-];
-
-// ── FAQ Accordion item ────────────────────────────────────────────────────────
-function FAQItem({ item }: { item: FAQ }) {
-  const [open, setOpen] = useState(false);
-  const anim = useRef(new Animated.Value(0)).current;
-
-  const toggle = () => {
-    Animated.timing(anim, {
-      toValue: open ? 0 : 1,
-      duration: 260,
-      useNativeDriver: false,
-    }).start();
-    setOpen(!open);
-  };
-
-  const maxHeight = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 100] });
-  const opacity   = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+  useEffect(() => {
+    if (!active) { rings.forEach(r => r.setValue(0)); return; }
+    const anims = rings.map((r, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 500),
+          Animated.timing(r, { toValue: 1, duration: 1800, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(r, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      )
+    );
+    anims.forEach(a => a.start());
+    return () => anims.forEach(a => a.stop());
+  }, [active]);
 
   return (
-    <View style={styles.faqItem}>
-      <TouchableOpacity style={styles.faqRow} onPress={toggle} activeOpacity={0.75}>
-        <Text style={styles.faqQ}>{item.q}</Text>
-        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color="#9CA3AF" />
-      </TouchableOpacity>
-      <Animated.View style={{ maxHeight, opacity, overflow: "hidden" }}>
-        <View style={styles.faqAnswer}>
-          <Text style={styles.faqA}>{item.a}</Text>
-          {item.aSub ? <Text style={styles.faqASub}>{item.aSub}</Text> : null}
-        </View>
-      </Animated.View>
-    </View>
+    <>
+      {rings.map((r, i) => (
+        <Animated.View
+          key={i}
+          style={{
+            position: "absolute",
+            width: 110,
+            height: 110,
+            borderRadius: 55,
+            backgroundColor: "#4CAF50",
+            opacity: r.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.22, 0] }),
+            transform: [{ scale: r.interpolate({ inputRange: [0, 1], outputRange: [1, 2.4] }) }],
+          }}
+        />
+      ))}
+    </>
   );
 }
 
-// ── Task row ──────────────────────────────────────────────────────────────────
-function TaskRow({ task, onToggle }: { task: Task; onToggle: () => void }) {
+// ── Bouncing dots ─────────────────────────────────────────────────────────────
+function BounceDot({ delay }: { delay: number }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(anim, { toValue: -5, duration: 280, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 280, useNativeDriver: true }),
+        Animated.delay(500),
+      ])
+    ).start();
+  }, []);
   return (
-    <View style={[styles.taskCard, task.done && styles.taskCardDone]}>
-      <View style={[styles.taskAccent, { backgroundColor: task.color }]} />
-      <View style={[styles.taskIconWrap, { backgroundColor: task.color + "22" }]}>
-        <Ionicons name={task.icon as any} size={20} color={task.color} />
+    <Animated.View
+      style={{
+        width: 7, height: 7, borderRadius: 4,
+        backgroundColor: "#4CAF50",
+        marginHorizontal: 2,
+        transform: [{ translateY: anim }],
+      }}
+    />
+  );
+}
+
+// ── Animated step row ─────────────────────────────────────────────────────────
+function StepRow({ step, animate }: { step: AIStep; animate?: boolean }) {
+  const opacity = useRef(new Animated.Value(animate ? 0 : 1)).current;
+  const translateY = useRef(new Animated.Value(animate ? 8 : 0)).current;
+
+  useEffect(() => {
+    if (!animate) return;
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.stepRow, { opacity, transform: [{ translateY }] }]}>
+      <View style={styles.stepBadge}>
+        <Text style={styles.stepBadgeText}>{step.number}</Text>
       </View>
-      <View style={styles.taskInfo}>
-        <Text style={[styles.taskTime, { color: task.done ? "#9CA3AF" : task.color }]}>{task.time}</Text>
-        <Text style={[styles.taskTitle, task.done && styles.taskTitleDone]}>{task.title}</Text>
-        <Text style={styles.taskSub}>{task.subtitle}</Text>
-      </View>
-      <TouchableOpacity onPress={onToggle} style={styles.taskCheck} activeOpacity={0.7}>
-        {task.done
-          ? <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
-          : <View style={styles.taskCheckEmpty} />
-        }
-      </TouchableOpacity>
-    </View>
+      <Text style={styles.stepText}>{step.text}</Text>
+    </Animated.View>
   );
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
-export default function Library() {
-  const today = new Date();
-  const [year,  setYear]  = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [selectedDay, setSelectedDay] = useState(today.getDate());
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
+export default function Voice() {
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [steps, setSteps] = useState<AIStep[]>([
+    { number: 1, text: "Sila tanya soalan untuk melihat langkah penyelesaian..." },
+    { number: 2, text: "", loading: true },
+  ]);
+  const [hasAnswer, setHasAnswer] = useState(false);
+  const micScale = useRef(new Animated.Value(1)).current;
+  const isActive = voiceState === "listening" || voiceState === "speaking";
 
-  const daysInMonth  = getDaysInMonth(year, month);
-  const firstDayOfWeek = getFirstDayOfMonth(year, month);
+  const animateMic = (toValue: number) =>
+    Animated.spring(micScale, { toValue, useNativeDriver: true, friction: 5 }).start();
 
-  const prevMonth = () => {
-    if (month === 0) { setMonth(11); setYear(y => y - 1); }
-    else setMonth(m => m - 1);
+  const ask = (question: string) => {
+    setVoiceState("thinking");
+    setHasAnswer(false);
+    setSteps([
+      { number: 1, text: "Sedang menganalisis soalan anda..." },
+      { number: 2, text: "", loading: true },
+    ]);
+
+    // Replace this timeout with a real Claude / OpenAI / Gemini API call
+    setTimeout(() => {
+      const result = getAISteps(question);
+      setSteps(result);
+      setHasAnswer(true);
+      setVoiceState("speaking");
+      setTimeout(() => setVoiceState("idle"), 2500);
+    }, 1800);
   };
-  const nextMonth = () => {
-    if (month === 11) { setMonth(0); setYear(y => y + 1); }
-    else setMonth(m => m + 1);
+
+  const handleMicPress = () => {
+    if (voiceState !== "idle") return;
+    setVoiceState("listening");
+
+    // Replace this timeout with real expo-av / Whisper STT integration
+    setTimeout(() => {
+      const samples = FAQS;
+      ask(samples[Math.floor(Math.random() * samples.length)]);
+    }, 2500);
   };
 
-  const toggleTask = (id: string) =>
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t));
-
-  // Build calendar grid
-  const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < totalCells; i++) {
-    const day = i - firstDayOfWeek + 1;
-    cells.push(day >= 1 && day <= daysInMonth ? day : null);
-  }
+  const stateLabel: Record<VoiceState, string> = {
+    idle: "Tekan untuk bercakap",
+    listening: "Sedang mendengar...",
+    thinking: "Sedang berfikir...",
+    speaking: "Tekan untuk bercakap",
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
 
-        {/* ── Calendar ── */}
-        <View style={styles.calCard}>
-          {/* Month nav */}
-          <View style={styles.calHeader}>
-            <TouchableOpacity onPress={prevMonth} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="chevron-back" size={20} color="#374151" />
-            </TouchableOpacity>
-            <Text style={styles.calMonth}>{MONTHS[month]} {year}</Text>
-            <TouchableOpacity onPress={nextMonth} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="chevron-forward" size={20} color="#374151" />
-            </TouchableOpacity>
-          </View>
+        {/* ── Title ── */}
+        <Text style={styles.title}>Tanya saya apa-apa tentang{"\n"}tanaman anda</Text>
 
-          {/* Day labels */}
-          <View style={styles.calDayLabels}>
-            {DAY_LABELS.map((d, i) => (
-              <Text key={i} style={styles.calDayLabel}>{d}</Text>
-            ))}
-          </View>
-
-          {/* Day grid */}
-          <View style={styles.calGrid}>
-            {cells.map((day, i) => {
-              const isToday   = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-              const isSelected = day === selectedDay;
-              return (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.calCell}
-                  onPress={() => day && setSelectedDay(day)}
-                  activeOpacity={day ? 0.7 : 1}
-                  disabled={!day}
-                >
-                  {day ? (
-                    <View style={[
-                      styles.calDayInner,
-                      isSelected && styles.calDaySelected,
-                    ]}>
-                      <Text style={[
-                        styles.calDayText,
-                        isSelected && styles.calDayTextSelected,
-                        isToday && !isSelected && styles.calDayToday,
-                      ]}>
-                        {day}
-                      </Text>
-                    </View>
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* ── Jadual Harian ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="time-outline" size={20} color="#22C55E" />
-            <Text style={styles.sectionTitle}>Jadual Harian</Text>
-          </View>
-
-          {tasks.map(task => (
-            <TaskRow key={task.id} task={task} onToggle={() => toggleTask(task.id)} />
-          ))}
-
-          {/* Alert banner */}
-          <View style={styles.alertBanner}>
-            <View style={styles.alertIconWrap}>
-              <Ionicons name="notifications" size={18} color="#F59E0B" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.alertText}>Peringatan: Rekod hasil hari ini</Text>
-              <Text style={styles.alertSub}>Reminder: Record today's yield</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Peringatan Hari Ini ── */}
-        <View style={styles.tipCard}>
-          <View style={styles.tipIconWrap}>
-            <Ionicons name="bulb" size={20} color="#22C55E" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.tipTitle}>Peringatan Hari Ini</Text>
-            <Text style={styles.tipBody}>
-              Penyiraman pada awal pagi membantu mencegah kulat dan memastikan anda tumbuhan terhidrat sebelum matahari masuk terlalu panas.
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Peringatan Penting ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="information-circle-outline" size={20} color="#22C55E" />
-            <Text style={styles.sectionTitle}>Peringatan Penting</Text>
-          </View>
-
-          <View style={styles.remindersCard}>
-            {REMINDERS.map((r, i) => (
-              <View key={i}>
-                <View style={styles.reminderRow}>
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#22C55E" style={{ marginRight: 10, marginTop: 1 }} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.reminderTitle}>{r.title}</Text>
-                    <Text style={styles.reminderSub}>{r.sub}</Text>
-                  </View>
+        {/* ── Mic button ── */}
+        <View style={styles.micArea}>
+          <PulseRings active={isActive} />
+          <Animated.View style={{ transform: [{ scale: micScale }] }}>
+            <TouchableOpacity
+              style={[styles.micBtn, voiceState === "listening" && styles.micBtnListening]}
+              onPressIn={() => animateMic(0.93)}
+              onPressOut={() => animateMic(1)}
+              onPress={handleMicPress}
+              disabled={voiceState === "thinking"}
+              activeOpacity={0.9}
+            >
+              {voiceState === "thinking" ? (
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <BounceDot delay={0} />
+                  <BounceDot delay={160} />
+                  <BounceDot delay={320} />
                 </View>
-                {i < REMINDERS.length - 1 && <View style={styles.reminderDivider} />}
-              </View>
-            ))}
-          </View>
+              ) : (
+                <Ionicons name="mic" size={38} color="white" />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </View>
 
-        {/* ── Masalah Biasa & Penyelesaian ── */}
-        <View style={[styles.section, { marginBottom: 10 }]}>
-          <View style={styles.sectionHeader}>
-            <MaterialCommunityIcons name="help-circle-outline" size={20} color="#22C55E" />
-            <Text style={styles.sectionTitle}>Masalah Biasa & Penyelesaian</Text>
+        {/* ── State label ── */}
+        <Text style={styles.stateLabel}>{stateLabel[voiceState]}</Text>
+
+        {/* ── AI Answer card ── */}
+        <View style={styles.answerCard}>
+          <View style={styles.answerHeader}>
+            <View style={styles.answerIconWrap}>
+              <MaterialCommunityIcons name="creation" size={15} color="#4CAF50" />
+            </View>
+            <Text style={styles.answerTitle}>Jawapan AI :</Text>
           </View>
 
-          <View style={styles.faqCard}>
-            {FAQS.map((item, i) => (
-              <View key={i}>
-                <FAQItem item={item} />
-                {i < FAQS.length - 1 && <View style={styles.faqDivider} />}
-              </View>
-            ))}
+          {voiceState === "thinking" ? (
+            <View style={styles.loadingRow}>
+              <BounceDot delay={0} />
+              <BounceDot delay={160} />
+              <BounceDot delay={320} />
+            </View>
+          ) : (
+            steps.map((s, i) =>
+              s.loading ? (
+                <View key={i} style={styles.stepRow}>
+                  <View style={styles.stepBadge}>
+                    <Text style={styles.stepBadgeText}>{s.number}</Text>
+                  </View>
+                  <View style={styles.skeletonLine} />
+                </View>
+              ) : (
+                <StepRow key={i} step={s} animate={hasAnswer} />
+              )
+            )
+          )}
+        </View>
+
+        {/* ── FAQ Section ── */}
+        <View style={styles.faqSection}>
+          <View style={styles.faqHeader}>
+            <MaterialCommunityIcons name="help-box-outline" size={20} color="#4CAF50" />
+            <Text style={styles.faqTitle}>Soalan Lazim</Text>
           </View>
+
+          {FAQS.map((q, i) => (
+            <TouchableOpacity
+              key={i}
+              style={styles.faqRow}
+              onPress={() => ask(q)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.faqText}>{q}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+            </TouchableOpacity>
+          ))}
         </View>
 
       </ScrollView>
@@ -308,135 +300,162 @@ export default function Library() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F2F4F3" },
-  scroll: { padding: 16, paddingBottom: 40 },
+  container: {
+    flex: 1,
+    backgroundColor: "#F2F4F3",
+  },
+  scroll: {
+    paddingHorizontal: 20,
+    paddingTop: 30,
+    paddingBottom: 40,
+    alignItems: "center",
+  },
 
-  // Calendar
-  calCard: {
+  // Title
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111",
+    textAlign: "center",
+    lineHeight: 32,
+    marginBottom: 36,
+  },
+
+  // Mic
+  micArea: {
+    width: 150,
+    height: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  micBtn: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#4CAF50",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#4CAF50",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  micBtnListening: {
+    backgroundColor: "#E53935",
+    shadowColor: "#E53935",
+  },
+  stateLabel: {
+    fontSize: 14,
+    color: "#4CAF50",
+    fontWeight: "600",
+    marginBottom: 28,
+  },
+
+  // Answer card
+  answerCard: {
+    width: "100%",
     backgroundColor: "white",
     borderRadius: 18,
-    padding: 16,
-    marginBottom: 20,
-    elevation: 2,
+    padding: 18,
+    marginBottom: 24,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 8,
+    elevation: 2,
   },
-  calHeader: {
+  answerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 14,
+    gap: 8,
+  },
+  answerIconWrap: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: 8,
+    padding: 5,
+  },
+  answerTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111",
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingLeft: 4,
+  },
+
+  // Steps
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
+    gap: 10,
+  },
+  stepBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#E8F5E9",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  stepBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2E7D32",
+  },
+  stepText: {
+    fontSize: 13,
+    color: "#374151",
+    lineHeight: 20,
+    flex: 1,
+  },
+  skeletonLine: {
+    flex: 1,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: "#E5E7EB",
+    marginTop: 4,
+  },
+
+  // FAQ
+  faqSection: {
+    width: "100%",
+  },
+  faqHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  faqTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#111",
+  },
+  faqRow: {
+    backgroundColor: "white",
+    borderRadius: 14,
+    paddingVertical: 15,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 14,
-    paddingHorizontal: 4,
-  },
-  calMonth: { fontSize: 16, fontWeight: "800", color: "#111" },
-  calDayLabels: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 6,
-  },
-  calDayLabel: { width: 36, textAlign: "center", fontSize: 12, color: "#9CA3AF", fontWeight: "600" },
-  calGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calCell: { width: "14.28%", alignItems: "center", marginBottom: 4 },
-  calDayInner: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-  calDaySelected: { backgroundColor: "#22C55E" },
-  calDayText: { fontSize: 14, color: "#374151", fontWeight: "500" },
-  calDayTextSelected: { color: "white", fontWeight: "700" },
-  calDayToday: { color: "#22C55E", fontWeight: "700" },
-
-  // Section
-  section: { marginBottom: 20 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#111" },
-
-  // Task card
-  taskCard: {
-    backgroundColor: "white",
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    elevation: 1,
+    marginBottom: 8,
     shadowColor: "#000",
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.03,
     shadowRadius: 4,
-    overflow: "hidden",
-  },
-  taskCardDone: { opacity: 0.75 },
-  taskAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 4, borderTopLeftRadius: 14, borderBottomLeftRadius: 14 },
-  taskIconWrap: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center", marginLeft: 8, marginRight: 12 },
-  taskInfo: { flex: 1 },
-  taskTime: { fontSize: 12, fontWeight: "700", marginBottom: 2 },
-  taskTitle: { fontSize: 14, fontWeight: "700", color: "#111" },
-  taskTitleDone: { textDecorationLine: "line-through", color: "#9CA3AF" },
-  taskSub: { fontSize: 12, color: "#9CA3AF", marginTop: 1 },
-  taskCheck: { padding: 4 },
-  taskCheckEmpty: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: "#D1D5DB" },
-
-  // Alert banner
-  alertBanner: {
-    backgroundColor: "#FFFBEB",
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#FDE68A",
-    marginTop: 4,
-  },
-  alertIconWrap: { backgroundColor: "#FEF3C7", borderRadius: 10, padding: 8, marginRight: 12 },
-  alertText: { fontSize: 13, fontWeight: "700", color: "#D97706" },
-  alertSub: { fontSize: 12, color: "#92400E", marginTop: 1 },
-
-  // Tip card
-  tipCard: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
-  },
-  tipIconWrap: { backgroundColor: "#DCFCE7", borderRadius: 10, padding: 8 },
-  tipTitle: { fontSize: 14, fontWeight: "800", color: "#15803D", marginBottom: 4 },
-  tipBody: { fontSize: 13, color: "#166534", lineHeight: 20 },
-
-  // Reminders card
-  remindersCard: {
-    backgroundColor: "white",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
     elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
   },
-  reminderRow: { flexDirection: "row", alignItems: "flex-start", paddingVertical: 14 },
-  reminderTitle: { fontSize: 13, fontWeight: "700", color: "#111" },
-  reminderSub: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
-  reminderDivider: { height: 1, backgroundColor: "#F3F4F6" },
-
-  // FAQ card
-  faqCard: {
-    backgroundColor: "white",
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+  faqText: {
+    fontSize: 13,
+    color: "#374151",
+    flex: 1,
   },
-  faqItem: { paddingVertical: 4 },
-  faqRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14 },
-  faqQ: { fontSize: 13, fontWeight: "700", color: "#111", flex: 1, marginRight: 8 },
-  faqAnswer: { paddingBottom: 14 },
-  faqA: { fontSize: 13, color: "#374151", lineHeight: 20 },
-  faqASub: { fontSize: 12, color: "#9CA3AF", marginTop: 3 },
-  faqDivider: { height: 1, backgroundColor: "#F3F4F6" },
 });
