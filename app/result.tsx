@@ -1,37 +1,64 @@
-import { View, Text } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function Result() {
-
-  const {
-    crop,
-    disease,
-    confidence,
-    severity
-  } = useLocalSearchParams();
+  const { advice } = useLocalSearchParams();
 
   return (
-    <View>
+    <ScrollView style={styles.container}>
 
-      <Text>Penyakit Dikesan</Text>
-      <Text>{disease}</Text>
+      <Text style={styles.title}>Hasil Diagnosis 🌿</Text>
 
-      <Text>Tanaman: {crop}</Text>
+      <View style={styles.card}>
+        <Text style={styles.advice}>{advice}</Text>
+      </View>
 
-      <Text>Keyakinan AI: {Math.round(Number(confidence)*100)}%</Text>
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <Text style={styles.backText}>Imbas Semula</Text>
+      </TouchableOpacity>
 
-      <Text>Tahap: {severity}</Text>
-
-      <Text>Rawatan Disyorkan</Text>
-
-      <Text>1. Buang daun terjejas</Text>
-      <Text>2. Guna fungisid</Text>
-
-      <Text>Pencegahan</Text>
-
-      <Text>• Jangan siram daun secara terus</Text>
-      <Text>• Pastikan peredaran udara baik</Text>
-
-    </View>
+    </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+    padding: 20,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 16,
+    marginTop: 10,
+  },
+  card: {
+    backgroundColor: "white",
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  advice: {
+    fontSize: 15,
+    lineHeight: 26,
+    color: "#333",
+  },
+  backBtn: {
+    backgroundColor: "#4CAF50",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 40,
+  },
+  backText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+});
