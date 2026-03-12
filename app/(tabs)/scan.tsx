@@ -1,54 +1,99 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system/legacy";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
+import { useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+const BACKEND_URL = "http://172.20.10.3:3000";
 
 export default function Scan() {
-
   const [image, setImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const openPicker = async () => {
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: false,
-      quality: 1
+      allowsEditing: true,
+      quality: 0.2,
     });
-
     if (!result.canceled) {
       setImage(result.assets[0].uri);
     }
   };
 
   const openCamera = async () => {
-
     const permission = await ImagePicker.requestCameraPermissionsAsync();
-
     if (!permission.granted) {
       alert("Camera permission required");
       return;
     }
-
     const result = await ImagePicker.launchCameraAsync({
-      quality: 1
+      quality: 0.2,
     });
-
     if (!result.canceled) {
       setImage(result.assets[0].uri);
     }
   };
 
-  const analyzeImage = () => {
+  const analyzeImage = async () => {
+    if (!image) return;
 
-    router.push({
-      pathname: "/result",
-      params: {
-        disease: "Blight Awal",
-        confidence: 0.94
+    try {
+      setLoading(true);
+
+      const base64 = await FileSystem.readAsStringAsync(image, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      let rawText = '';
+
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/diagnose`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "bypass-tunnel-reminder": "true",
+            "ngrok-skip-browser-warning": "true",
+          },
+          body: JSON.stringify({ base64Image: base64 }),
+        });
+
+        rawText = await response.text();
+        console.log('STATUS:', response.status);
+        console.log('RAW:', rawText.substring(0, 200));
+
+        const data = JSON.parse(rawText);
+
+        if (!data.success) {
+          alert(data.message || "Ralat berlaku. Sila cuba lagi.");
+          return;
+        }
+
+        router.push({
+          pathname: "/result",
+          params: { advice: data.data.advice },
+        });
+
+      } catch (parseError) {
+        console.error('Parse error, raw was:', rawText.substring(0, 500));
+        alert("Server error: " + rawText.substring(0, 200));
       }
-    });
 
+    }  catch (error: any) {
+    alert("Error: " + error.message);
+    console.error(error);
+
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,13 +105,10 @@ export default function Scan() {
         Arahkan kamera ke bahagian daun atau batang yang sakit untuk diagnosis
       </Text>
 
-      {/* Image Box */}
       <TouchableOpacity style={styles.previewBox} onPress={openCamera}>
-
         {image ? (
           <>
             <Image source={{ uri: image }} style={styles.previewImage} />
-
             <TouchableOpacity
               style={styles.removeBtn}
               onPress={() => setImage(null)}
@@ -79,99 +121,84 @@ export default function Scan() {
             <Ionicons name="camera-outline" size={32} color="#666" />
           </View>
         )}
-
       </TouchableOpacity>
 
-      {/* Buttons */}
       <View style={styles.row}>
-
         <TouchableOpacity style={styles.galleryBtn} onPress={openPicker}>
           <Ionicons name="images-outline" size={20} />
           <Text style={styles.btnText}>Galeri</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[
-            styles.analyzeBtn,
-            { opacity: image ? 1 : 0.4 }
-          ]}
-          disabled={!image}
+          style={[styles.analyzeBtn, { opacity: image && !loading ? 1 : 0.4 }]}
+          disabled={!image || loading}
           onPress={analyzeImage}
         >
-          <Text style={styles.analyzeText}>Analisis</Text>
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.analyzeText}>Analisis</Text>
+          )}
         </TouchableOpacity>
-
       </View>
-      {/* Guide */}
-         <View style={styles.guide}>
 
-           <Text style={styles.guideTitle}>Panduan Penggunaan</Text>
-
-           <Text style={styles.guideItem}>1  Pastikan daun padi jelas dalam gambar.</Text>
-           <Text style={styles.guideItem}>2  Gunakan cahaya yang mencukupi.</Text>
-           <Text style={styles.guideItem}>3  Fokus pada bahagian yang rosak.</Text>
-
-         </View>
+      <View style={styles.guide}>
+        <Text style={styles.guideTitle}>Panduan Penggunaan</Text>
+        <Text style={styles.guideItem}>1  Pastikan daun padi jelas dalam gambar.</Text>
+        <Text style={styles.guideItem}>2  Gunakan cahaya yang mencukupi.</Text>
+        <Text style={styles.guideItem}>3  Fokus pada bahagian yang rosak.</Text>
+      </View>
 
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: "#F3F4F6",
-    padding: 20
+    padding: 20,
   },
-
   title: {
     fontSize: 18,
     fontWeight: "700",
-    textAlign: "center"
+    textAlign: "center",
   },
-
   subtitle: {
     textAlign: "center",
     color: "#666",
     marginTop: 6,
-    marginBottom: 20
+    marginBottom: 20,
   },
-
   previewBox: {
     height: 230,
     borderRadius: 16,
     backgroundColor: "#E5E7EB",
     justifyContent: "center",
     alignItems: "center",
-    overflow: "hidden"
+    overflow: "hidden",
   },
-
   placeholder: {
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
-
   previewImage: {
     width: "100%",
-    height: "100%"
+    height: "100%",
   },
-
   removeBtn: {
     position: "absolute",
     top: 10,
     right: 10,
     backgroundColor: "rgba(0,0,0,0.6)",
     borderRadius: 20,
-    padding: 6
+    padding: 6,
   },
-
   row: {
     flexDirection: "row",
     marginTop: 20,
-    justifyContent: "space-between"
+    justifyContent: "space-between",
   },
-
   galleryBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -179,201 +206,35 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     width: "48%",
-    justifyContent: "center"
+    justifyContent: "center",
   },
-
   btnText: {
-    marginLeft: 6
+    marginLeft: 6,
   },
-
   analyzeBtn: {
     backgroundColor: "#4CAF50",
     padding: 14,
     borderRadius: 12,
     width: "48%",
-    alignItems: "center"
+    alignItems: "center",
   },
-
   analyzeText: {
     color: "white",
-    fontWeight: "600"
+    fontWeight: "600",
   },
-
-    guide: {
+  guide: {
     backgroundColor: "#F9FAFB",
     borderRadius: 12,
-    padding: 14
+    padding: 14,
+    marginTop: 20,
   },
-
   guideTitle: {
     fontWeight: "700",
     marginBottom: 8,
-    color: "#2E7D32"
+    color: "#2E7D32",
   },
-
   guideItem: {
     color: "#555",
-    marginBottom: 4
-  }
-
+    marginBottom: 4,
+  },
 });
-
-//   return (
-//     <View style={styles.container}>
-
-//       <Text style={styles.header}>Imbas Tanaman</Text>
-
-//       <View style={styles.card}>
-
-//         <Text style={styles.title}>Ambil gambar tanaman</Text>
-
-//         <Text style={styles.subtitle}>
-//           Arahkan kamera ke bahagian daun atau batang yang sakit untuk diagnosis
-//         </Text>
-
-//         {/* Preview */}
-//         <View style={styles.previewContainer}>
-
-//           {image ? (
-//             <Image source={{ uri: image }} style={styles.preview} />
-//           ) : (
-//             <CameraView style={styles.preview} ref={cameraRef} />
-//           )}
-
-//           <View style={styles.cameraOverlay}>
-//             <Ionicons name="camera-outline" size={28} color="white" />
-//           </View>
-
-//         </View>
-
-//         {/* Buttons */}
-//         <View style={styles.buttonRow}>
-
-//           <TouchableOpacity style={styles.galleryBtn} onPress={pickImage}>
-//             <Ionicons name="images-outline" size={20} color="#444" />
-//             <Text style={styles.galleryText}>Galeri</Text>
-//           </TouchableOpacity>
-
-//           <TouchableOpacity style={styles.cameraBtn} onPress={takePhoto}>
-//             <Ionicons name="camera-outline" size={20} color="white" />
-//             <Text style={styles.cameraText}>Kamera</Text>
-//           </TouchableOpacity>
-
-//         </View>
-
-//         {/* Guide */}
-//         <View style={styles.guide}>
-
-//           <Text style={styles.guideTitle}>Panduan Penggunaan</Text>
-
-//           <Text style={styles.guideItem}>1  Pastikan daun padi jelas dalam gambar.</Text>
-//           <Text style={styles.guideItem}>2  Gunakan cahaya yang mencukupi.</Text>
-//           <Text style={styles.guideItem}>3  Fokus pada bahagian yang rosak.</Text>
-
-//         </View>
-
-//       </View>
-
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-
-//   container: {
-//     flex: 1,
-//     backgroundColor: "#F3F4F6",
-//     padding: 20
-//   },
-
-//   header: {
-//     fontSize: 20,
-//     fontWeight: "600",
-//     textAlign: "center",
-//     marginBottom: 20
-//   },
-
-//   card: {
-//     backgroundColor: "white",
-//     borderRadius: 18,
-//     padding: 20,
-//     shadowColor: "#000",
-//     shadowOpacity: 0.05,
-//     shadowRadius: 8,
-//     elevation: 3
-//   },
-
-//   title: {
-//     fontSize: 18,
-//     fontWeight: "700",
-//     textAlign: "center"
-//   },
-
-//   subtitle: {
-//     textAlign: "center",
-//     color: "#666",
-//     marginTop: 6,
-//     marginBottom: 18
-//   },
-
-//   previewContainer: {
-//     height: 230,
-//     borderRadius: 14,
-//     overflow: "hidden",
-//     marginBottom: 18
-//   },
-
-//   preview: {
-//     width: "100%",
-//     height: "100%"
-//   },
-
-//   cameraOverlay: {
-//     position: "absolute",
-//     alignSelf: "center",
-//     top: "40%",
-//     backgroundColor: "rgba(0,0,0,0.3)",
-//     padding: 16,
-//     borderRadius: 50
-//   },
-
-//   buttonRow: {
-//     flexDirection: "row",
-//     justifyContent: "space-between",
-//     marginBottom: 20
-//   },
-
-//   galleryBtn: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     backgroundColor: "#E5E7EB",
-//     padding: 14,
-//     borderRadius: 12,
-//     width: "48%",
-//     justifyContent: "center"
-//   },
-
-//   galleryText: {
-//     marginLeft: 6,
-//     fontWeight: "600"
-//   },
-
-//   cameraBtn: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     backgroundColor: "#4CAF50",
-//     padding: 14,
-//     borderRadius: 12,
-//     width: "48%",
-//     justifyContent: "center"
-//   },
-
-//   cameraText: {
-//     marginLeft: 6,
-//     color: "white",
-//     fontWeight: "600"
-//   },
-
-
-
-// });
