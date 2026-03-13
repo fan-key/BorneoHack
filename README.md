@@ -89,3 +89,4 @@ Use your computer's IPv4 address, not localhost.
 ## Demo Video
 
 ## Project Report
+[TaniWise Project Report](https://github.com/fan-key/BorneoHack/blob/0a7b025df21265eab62e7d00d63ad2c7c03e0ebc/TaniWise%20Project%20Report.pdf)
