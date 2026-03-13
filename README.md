@@ -1,50 +1,91 @@
-# Welcome to your Expo app 👋
+# TaniWise – AI Crop Disease Detection
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+TaniWise is an AI-powered mobile application designed to educate farmers about crop diseases and sustainable farming practices.
 
-## Get started
+By scanning plant leaves with a smartphone, farmers can receive instant AI-powered diagnosis, along with clear treatment steps and prevention strategies. The goal is not only to detect plant diseases, but also to teach farmers how to manage crop health and improve long-term food security.
 
-1. Install dependencies
+This project was built using React Native (Expo) and Google Gemini AI.
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 🏗Project Architecture
 
 ```bash
-npm run reset-project
+project-root
+│
+├── app/                 # React Native Expo mobile app
+│   ├── (tabs)/
+│   │   ├── scan.tsx
+│   │   ├── history.tsx
+│   │   ├── library.tsx
+│   │   └── index.tsx
+│   │
+│   ├── result.tsx
+│   └── _layout.tsx
+│
+├── backend/             # Node.js AI backend server
+│   ├── src/
+│   │   ├── routes/
+│   │   │   └── diagnose.js
+│   │   ├── services/
+│   │   │   ├── gemini.js
+│   │   │   ├── imageOptimizer.js
+│   │   │   └── requestQueue.js
+│   │   └── index.js
+│   │
+│   └── .env
+│
+└── config.ts            # Backend configuration
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## ⚙️Installation
+### 1. Install Dependencies
+```bash
+npm install
+```
+### Backend Setup
 
-## Learn more
+Navigate to the backend folder:
+```bash
+cd backend
+npm install
+```
+Create a ```.env``` file inside the backend folder:
+```
+PORT=3000
+GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+```
+Start the backend server:
+```
+node src/index.js
+```
+Expected output:
+```
+Server running on port 3000
+```
+### 📱Mobile App Setup
 
-To learn more about developing your project with Expo, look at the following resources:
+Start the Expo development server:
+```
+npx expo start
+```
+You can open the app using:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Android Emulator
 
-## Join the community
+- iOS Simulator
 
-Join our community of developers creating universal apps.
+- Expo Go on a mobile device
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### 🔧Backend URL Configuration
+
+Edit ```config.tsx``` to point to your backend server:
+```
+export const BACKEND_URL = "http://192.xxx.x.x:3000";
+```
+Use your computer's IPv4 address, not localhost.
+
+## Figma Prototype
+[Figma Prototype](https://www.figma.com/proto/MAaB93YKT9hm8Sxjb3dn6C/TaniWise--BorneoHck-?node-id=41-879&t=oiEF32qR3CoFJk2D-1&scaling=scale-down&content-scaling=fixed&page-id=41%3A2&starting-point-node-id=55%3A68)
+
+## Demo Video
+
+## Project Report
