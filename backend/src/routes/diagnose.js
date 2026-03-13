@@ -5,6 +5,7 @@ const { optimizeImage } = require('../services/imageOptimizer');
 const { geminiQueue } = require('../services/requestQueue');
 
 router.post('/', async (req, res, next) => {
+  console.log("Diagnose endpoint hit");
   try {
     const { base64Image } = req.body;
 

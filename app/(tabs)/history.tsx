@@ -1,48 +1,60 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useState } from "react";
 
-const historyData = [
-  {
-    id: 1,
-    title: "Hawar Daun Bakteri",
-    crop: "Padi",
-    date: "12 Okt 2023",
-    level: "TINGGI",
-    image: "https://images.unsplash.com/photo-1598514982841-646c36e9c2a0"
-  },
-  {
-    id: 2,
-    title: "Karat Jagung",
-    crop: "Jagung",
-    date: "08 Okt 2023",
-    level: "SEDERHANA",
-    image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef"
-  },
-  {
-    id: 3,
-    title: "Sihat (Tiada Penyakit)",
-    crop: "Cili",
-    date: "05 Okt 2023",
-    level: "RENDAH",
-    image: "https://images.unsplash.com/photo-1561136594-7f68413baa99"
-  }
-];
+
+
 
 export default function History() {
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      const data = await AsyncStorage.getItem("scanHistory");
+      console.log("HISTORY DATA:", data);
+      const savedHistory = data ? JSON.parse(data) : [];
+      if (data) {
+        setHistory([...savedHistory]);
+      }
+    };
+
+    loadHistory();
+  }, []);
+  const deleteHistory = async () => {
+    try {
+      await AsyncStorage.removeItem("scanHistory");
+      // reset to dummy data only
+      setHistory([]);
+    } catch (err) {
+      console.log("Failed to clear history:", err);
+    }
+  };
   return (
     <ScrollView style={styles.container}>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>Sejarah Imbasan</Text>
 
-      <Text style={styles.title}>Sejarah Imbasan</Text>
-
-      {historyData.map((item) => (
+        <TouchableOpacity style={styles.deleteBtn} onPress={deleteHistory}>
+          <Ionicons name="trash-outline" size={18} color="white" />
+          <Text style={styles.deleteText}>Padam</Text>
+        </TouchableOpacity>
+      </View>
+      {history.map((item) => (
         <TouchableOpacity
           key={item.id}
           style={styles.card}
           onPress={() =>
             router.push({
-              pathname: "/history-detail",
-              params: { title: item.title }
+              pathname: "/result",
+              params: {
+                disease: item.disease,
+                confidence: item.confidence,
+                treatment: JSON.stringify(item.treatment),
+                prevention: JSON.stringify(item.prevention),
+                image: item.image,
+              }
             })
           }
         >
@@ -50,12 +62,13 @@ export default function History() {
           <Image source={{ uri: item.image }} style={styles.image} />
 
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
+            <Text style={styles.cardTitle}>{item.disease}</Text>
+
             <Text style={styles.subtitle}>
-              {item.crop} • {item.date}
+              {new Date(item.date).toLocaleDateString()}
             </Text>
 
-            <Text style={styles.link}>Lihat Rawatan ></Text>
+            <Text style={styles.link}>Lihat Rawatan </Text>
           </View>
 
           <View style={styles.badge}>
@@ -127,6 +140,28 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     fontWeight: "700",
     fontSize: 11
+  },
+    headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20
+  },
+
+  deleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10
+  },
+
+  deleteText: {
+    color: "white",
+    marginLeft: 6,
+    fontWeight: "600",
+    fontSize: 13
   }
 
 });

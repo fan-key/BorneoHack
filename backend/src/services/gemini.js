@@ -36,13 +36,30 @@ const callGeminiWithRetry = async (payload, retries = 4) => {
 };
 
 const analyzeAndAdvise = async (base64Image) => {
-  const prompt = `
-    Pakar pertanian Malaysia. Analisis gambar tanaman ini.
-    Jawab dalam Bahasa Malaysia ringkas:
-    1. Masalah:
-    2. Rawatan:
-    3. Pencegahan:
-  `;
+const prompt = `
+Anda ialah pakar pertanian Malaysia.
+
+Analisis gambar tanaman ini dan kembalikan keputusan dalam JSON SAHAJA.
+
+Format wajib:
+
+{
+"disease": "string",
+"confidence": number,
+"treatment": ["string","string","string"],
+"prevention": ["string","string","string","string"]
+}
+
+Peraturan:
+- Bahasa Malaysia sahaja
+- confidence antara 0 hingga 100
+- maksimum 3 rawatan
+- maksimum 4 pencegahan
+- ayat pendek dan jelas
+- jangan tulis apa-apa selain JSON
+- jangan gunakan markdown
+- jangan tambah penerangan
+`;
 
   const payload = {
     contents: [
@@ -61,7 +78,18 @@ const analyzeAndAdvise = async (base64Image) => {
   };
 
   const response = await callGeminiWithRetry(payload);
-  return response.data.candidates[0].content.parts[0].text;
-};
+const raw = response.data.candidates?.[0]?.content?.parts
+  ?.map(p => p.text || "")
+  .join("") || "";
+
+
+const match = raw.match(/\{[\s\S]*\}/);
+
+if (!match) {
+  throw new Error("AI did not return JSON");
+}
+
+return match[0];
 
 module.exports = { analyzeAndAdvise };
+}

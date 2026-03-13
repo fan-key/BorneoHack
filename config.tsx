@@ -1,0 +1,2 @@
+
+export const BACKEND_URL = "http:YOUR_BACKEND_URL_HERE:3000";

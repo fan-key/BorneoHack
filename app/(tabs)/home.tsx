@@ -79,7 +79,7 @@ export default function Home() {
       </View>
 
       {/* AI Tips */}
-      <Text style={styles.sectionTitle}>Tip AI TaniGrow</Text>
+      <Text style={styles.sectionTitle}>Tip AI TaniWise</Text>
 
       <View style={styles.tipCard}>
         <View style={styles.tipIcon}>
@@ -108,6 +108,7 @@ const styles = StyleSheet.create({
   },
 
   greetingRow: {
+    marginTop: 40,
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 20

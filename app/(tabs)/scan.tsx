@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+
 import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
@@ -11,9 +12,10 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BACKEND_URL } from "../../config";
 
-const BACKEND_URL = "http://172.20.10.3:3000";
-
+const url = BACKEND_URL;
 export default function Scan() {
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,7 +58,8 @@ export default function Scan() {
       let rawText = '';
 
       try {
-        const response = await fetch(`${BACKEND_URL}/api/diagnose`, {
+        console.log("Calling backend:", `${url}/api/diagnose`);
+        const response = await fetch(`${url}/api/diagnose`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -70,6 +73,10 @@ export default function Scan() {
         console.log('STATUS:', response.status);
         console.log('RAW:', rawText.substring(0, 200));
 
+        if (!rawText) {          
+          throw new Error("Empty response from server");
+        }
+
         const data = JSON.parse(rawText);
 
         if (!data.success) {
@@ -77,10 +84,36 @@ export default function Scan() {
           return;
         }
 
+        const ai = JSON.parse(data.data.advice);
+
+        const historyItem = {
+          id: Date.now().toString(),
+          disease: ai.disease,
+          confidence: ai.confidence,
+          treatment: ai.treatment,
+          prevention: ai.prevention,
+          image,
+          date: new Date().toISOString(),
+        };
+
+        const existing = await AsyncStorage.getItem("scanHistory");
+        const history = existing ? JSON.parse(existing) : [];
+
+        history.unshift(historyItem);
+
+        await AsyncStorage.setItem("scanHistory", JSON.stringify(history));
+
         router.push({
           pathname: "/result",
-          params: { advice: data.data.advice },
+          params: {
+            disease: ai.disease,
+            confidence: ai.confidence,
+            treatment: JSON.stringify(ai.treatment),
+            prevention: JSON.stringify(ai.prevention),
+            image,
+          },
         });
+
 
       } catch (parseError) {
         console.error('Parse error, raw was:', rawText.substring(0, 500));

@@ -42,7 +42,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="scan"
         options={{
-          title: 'Scan',
+          title: 'Analisis',
           tabBarIcon: ({ color }) => (
             <Ionicons name="camera" size={28} color={color} />
           ),
@@ -51,7 +51,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="voice"
         options={{
-          title: 'Voice',
+          title: 'Tanya AI',
           tabBarIcon: ({ color }) => (
             <Ionicons name="mic" size={28} color={color} />
           ),
@@ -60,7 +60,7 @@ export default function TabLayout() {
             <Tabs.Screen
         name="library"
         options={{
-          title: 'Library',
+          title: 'Panduan',
           tabBarIcon: ({ color }) => (
             <Ionicons name="book" size={28} color={color} />
           ),
@@ -69,7 +69,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="history"
         options={{
-          title: 'History',
+          title: 'Sejarah',
           tabBarIcon: ({ color }) => (
             <Ionicons name="time" size={28} color={color} />
           ),
