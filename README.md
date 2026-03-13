@@ -87,6 +87,6 @@ Use your computer's IPv4 address, not localhost.
 [Figma Prototype](https://www.figma.com/proto/MAaB93YKT9hm8Sxjb3dn6C/TaniWise--BorneoHck-?node-id=41-879&t=oiEF32qR3CoFJk2D-1&scaling=scale-down&content-scaling=fixed&page-id=41%3A2&starting-point-node-id=55%3A68)
 
 ## Demo Video
-
+[Demo Video](https://youtu.be/FQJ3yoUURDY)
 ## Project Report
 [TaniWise Project Report](https://github.com/fan-key/BorneoHack/blob/0a7b025df21265eab62e7d00d63ad2c7c03e0ebc/TaniWise%20Project%20Report.pdf)
